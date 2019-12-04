@@ -1,0 +1,9 @@
+[package]
+name = "nasskan"
+version = "0.1.0"
+authors = ["tadosappo <tadosappo@users.noreply.github.com>"]
+edition = "2018"
+
+[dependencies]
+udev = "0.2"
+mio = "0.6"

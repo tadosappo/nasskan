@@ -1,0 +1,10 @@
+version: 1
+devices:
+  - path: /dev/input/by-id/platform-i8042-serio-0-event-kbd
+    keymap:
+      - from:
+          key: CAPSLOCK
+        to:
+          key: LEFTCTRL
+        tap:
+          key: ESC
