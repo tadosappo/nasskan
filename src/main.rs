@@ -1,15 +1,36 @@
+use evdev::enums::EV_KEY;
 use evdev_rs as evdev;
 use log::*;
 use mio::unix::EventedFd;
 use mio::*;
 use std::cell::RefCell;
-use std::collections::HashMap;
-use std::convert::TryInto;
+use std::collections::{HashMap, HashSet};
+use std::convert::{TryFrom, TryInto};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::rc::Rc;
 
 mod config;
 use config::*;
+
+#[derive(Debug, Eq, PartialEq)]
+enum Action {
+  Release,
+  Press,
+  Repeat,
+}
+
+impl TryFrom<i32> for Action {
+  type Error = ();
+
+  fn try_from(value: i32) -> Result<Self, Self::Error> {
+    match value {
+      0 => Ok(Action::Release),
+      1 => Ok(Action::Press),
+      2 => Ok(Action::Repeat),
+      _ => Err(()),
+    }
+  }
+}
 
 trait AsyncWorker: AsRawFd {
   fn step(&mut self, manager: &mut WorkerManager);
@@ -70,26 +91,74 @@ impl WorkerManager {
 }
 
 struct KeyPressWorker {
-  file: std::fs::File,
+  device: evdev::Device,
+  keymap: &'static Vec<Rule>,
+  active_modifiers: HashSet<Modifier>,
 }
 
 impl KeyPressWorker {
-  fn new(path: &std::path::Path) -> Self {
+  fn new(path: &std::path::Path, keymap: &'static Vec<Rule>) -> Self {
     let file = std::fs::File::open(path).unwrap();
+    let mut device = evdev::Device::new_from_fd(file).unwrap();
+    device.grab(evdev::GrabMode::Grab).unwrap();
 
-    Self { file }
+    Self {
+      device,
+      keymap,
+      active_modifiers: HashSet::new(),
+    }
+  }
+
+  fn handle_event(&mut self, event: evdev::InputEvent) {
+    if event.event_type != evdev::enums::EventType::EV_KEY {
+      debug!("Ignored an evdev event: {:?}", event);
+      return;
+    };
+
+    let action: Action = event.value.try_into().expect("Invalid value");
+    let key: EV_KEY = match event.event_code {
+      evdev::enums::EventCode::EV_KEY(key) => key,
+      _ => unreachable!(),
+    };
+    let modifier: Option<Modifier> = key.clone().try_into().ok();
+
+    debug!("Pressed: {:?} {:?} {:?}", action, key, modifier);
   }
 }
 
 impl AsRawFd for KeyPressWorker {
   fn as_raw_fd(&self) -> RawFd {
-    self.file.as_raw_fd()
+    let file = self.device.fd().unwrap();
+    let fd = file.as_raw_fd();
+
+    // Why do I have to do this...
+    // When `file` dropped, its destructor gets called, and `fd` becomes invalid.
+    // TODO: Fill a bug report to evdev-rs
+    std::mem::forget(file);
+
+    fd
   }
 }
 
 impl AsyncWorker for KeyPressWorker {
   fn step(&mut self, _: &mut WorkerManager) {
-    debug!("pressed!")
+    let mut flag = evdev::ReadFlag::NORMAL;
+    loop {
+      match self.device.next_event(flag) {
+        Ok((evdev::ReadStatus::Success, event)) => self.handle_event(event),
+        Ok((evdev::ReadStatus::Sync, event)) => {
+          warn!("Nasskan could not keep up with you typing so fast... now trying to recover.");
+          flag = evdev::ReadFlag::SYNC;
+          self.handle_event(event);
+        }
+        Err(nix::errno::Errno::EAGAIN) => return,
+        Err(nix::errno::Errno::ENODEV) => return,
+        Err(error) => {
+          error!("evdev error: {:?}", error);
+          return;
+        }
+      };
+    }
   }
 }
 
@@ -150,7 +219,7 @@ impl AsyncWorker for KeyboardConnectionWorker {
             );
             manager.start(
               device_id.try_into().unwrap(),
-              KeyPressWorker::new(device_file_path),
+              KeyPressWorker::new(device_file_path, &config_device.then),
             );
             return;
           }
