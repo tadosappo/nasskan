@@ -91,21 +91,27 @@ impl WorkerManager {
 }
 
 struct KeyPressWorker {
-  device: evdev::Device,
+  actual_keyboard: evdev::Device,
+  virtual_keyboard: evdev::UInputDevice,
   keymap: &'static Vec<Rule>,
   active_modifiers: HashSet<Modifier>,
+  last_key: EV_KEY,
 }
 
 impl KeyPressWorker {
   fn new(path: &std::path::Path, keymap: &'static Vec<Rule>) -> Self {
     let file = std::fs::File::open(path).unwrap();
-    let mut device = evdev::Device::new_from_fd(file).unwrap();
-    device.grab(evdev::GrabMode::Grab).unwrap();
+    let mut actual_keyboard = evdev::Device::new_from_fd(file).unwrap();
+    let virtual_keyboard = evdev::UInputDevice::create_from_device(&actual_keyboard)
+      .expect("Creating uinput device failed. Maybe uinput kernel module is not loaded?");
+    actual_keyboard.grab(evdev::GrabMode::Grab).unwrap();
 
     Self {
-      device,
+      actual_keyboard,
+      virtual_keyboard,
       keymap,
       active_modifiers: HashSet::new(),
+      last_key: EV_KEY::KEY_UNKNOWN,
     }
   }
 
@@ -116,19 +122,30 @@ impl KeyPressWorker {
     };
 
     let action: Action = event.value.try_into().expect("Invalid value");
-    let key: EV_KEY = match event.event_code {
-      evdev::enums::EventCode::EV_KEY(key) => key,
+    let key: EV_KEY = match &event.event_code {
+      evdev::enums::EventCode::EV_KEY(ref key) => key.clone(),
       _ => unreachable!(),
     };
     let modifier: Option<Modifier> = key.clone().try_into().ok();
 
-    debug!("Pressed: {:?} {:?} {:?}", action, key, modifier);
+    debug!("{:?}: {:?} with {:?}", action, key, modifier);
+
+    self.virtual_keyboard.write_event(&event).unwrap();
+    self
+      .virtual_keyboard
+      .write_event(&evdev::InputEvent {
+        event_type: evdev::enums::EventType::EV_SYN,
+        event_code: evdev::enums::EventCode::EV_SYN(evdev::enums::EV_SYN::SYN_REPORT),
+        value: 0,
+        ..event
+      })
+      .unwrap();
   }
 }
 
 impl AsRawFd for KeyPressWorker {
   fn as_raw_fd(&self) -> RawFd {
-    let file = self.device.fd().unwrap();
+    let file = self.actual_keyboard.fd().unwrap();
     let fd = file.as_raw_fd();
 
     // Why do I have to do this...
@@ -144,7 +161,7 @@ impl AsyncWorker for KeyPressWorker {
   fn step(&mut self, _: &mut WorkerManager) {
     let mut flag = evdev::ReadFlag::NORMAL;
     loop {
-      match self.device.next_event(flag) {
+      match self.actual_keyboard.next_event(flag) {
         Ok((evdev::ReadStatus::Success, event)) => self.handle_event(event),
         Ok((evdev::ReadStatus::Sync, event)) => {
           warn!("Nasskan could not keep up with you typing so fast... now trying to recover.");
