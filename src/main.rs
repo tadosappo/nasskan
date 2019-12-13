@@ -1,36 +1,18 @@
-use evdev::enums::EV_KEY;
 use evdev_rs as evdev;
 use log::*;
 use mio::unix::EventedFd;
 use mio::*;
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
-use std::convert::{TryFrom, TryInto};
+use std::collections::BTreeMap;
+use std::convert::TryInto;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::rc::Rc;
+use std::time::SystemTime;
 
+mod remapper;
+use remapper::*;
 mod config;
 use config::*;
-
-#[derive(Debug, Eq, PartialEq)]
-enum Action {
-  Release,
-  Press,
-  Repeat,
-}
-
-impl TryFrom<i32> for Action {
-  type Error = ();
-
-  fn try_from(value: i32) -> Result<Self, Self::Error> {
-    match value {
-      0 => Ok(Action::Release),
-      1 => Ok(Action::Press),
-      2 => Ok(Action::Repeat),
-      _ => Err(()),
-    }
-  }
-}
 
 trait AsyncWorker: AsRawFd {
   fn step(&mut self, manager: &mut WorkerManager);
@@ -38,14 +20,14 @@ trait AsyncWorker: AsRawFd {
 
 struct WorkerManager {
   poll: mio::Poll,
-  workers: HashMap<usize, Rc<RefCell<dyn AsyncWorker>>>,
+  workers: BTreeMap<usize, Rc<RefCell<dyn AsyncWorker>>>,
 }
 
 impl WorkerManager {
   fn new() -> Self {
     Self {
       poll: Poll::new().unwrap(),
-      workers: HashMap::new(),
+      workers: BTreeMap::new(),
     }
   }
 
@@ -86,95 +68,6 @@ impl WorkerManager {
         .deregister(&EventedFd(&worker.borrow().as_raw_fd()))
         .unwrap(),
       None => return,
-    }
-  }
-}
-
-struct KeyPressWorker {
-  actual_keyboard: evdev::Device,
-  virtual_keyboard: evdev::UInputDevice,
-  keymap: &'static Vec<Rule>,
-  active_modifiers: HashSet<Modifier>,
-  last_key: EV_KEY,
-}
-
-impl KeyPressWorker {
-  fn new(path: &std::path::Path, keymap: &'static Vec<Rule>) -> Self {
-    let file = std::fs::File::open(path).unwrap();
-    let mut actual_keyboard = evdev::Device::new_from_fd(file).unwrap();
-    let virtual_keyboard = evdev::UInputDevice::create_from_device(&actual_keyboard)
-      .expect("Creating uinput device failed. Maybe uinput kernel module is not loaded?");
-    actual_keyboard.grab(evdev::GrabMode::Grab).unwrap();
-
-    Self {
-      actual_keyboard,
-      virtual_keyboard,
-      keymap,
-      active_modifiers: HashSet::new(),
-      last_key: EV_KEY::KEY_UNKNOWN,
-    }
-  }
-
-  fn handle_event(&mut self, event: evdev::InputEvent) {
-    if event.event_type != evdev::enums::EventType::EV_KEY {
-      debug!("Ignored an evdev event: {:?}", event);
-      return;
-    };
-
-    let action: Action = event.value.try_into().expect("Invalid value");
-    let key: EV_KEY = match &event.event_code {
-      evdev::enums::EventCode::EV_KEY(ref key) => key.clone(),
-      _ => unreachable!(),
-    };
-    let modifier: Option<Modifier> = key.clone().try_into().ok();
-
-    debug!("{:?}: {:?} with {:?}", action, key, modifier);
-
-    self.virtual_keyboard.write_event(&event).unwrap();
-    self
-      .virtual_keyboard
-      .write_event(&evdev::InputEvent {
-        event_type: evdev::enums::EventType::EV_SYN,
-        event_code: evdev::enums::EventCode::EV_SYN(evdev::enums::EV_SYN::SYN_REPORT),
-        value: 0,
-        ..event
-      })
-      .unwrap();
-  }
-}
-
-impl AsRawFd for KeyPressWorker {
-  fn as_raw_fd(&self) -> RawFd {
-    let file = self.actual_keyboard.fd().unwrap();
-    let fd = file.as_raw_fd();
-
-    // Why do I have to do this...
-    // When `file` dropped, its destructor gets called, and `fd` becomes invalid.
-    // TODO: Fill a bug report to evdev-rs
-    std::mem::forget(file);
-
-    fd
-  }
-}
-
-impl AsyncWorker for KeyPressWorker {
-  fn step(&mut self, _: &mut WorkerManager) {
-    let mut flag = evdev::ReadFlag::NORMAL;
-    loop {
-      match self.actual_keyboard.next_event(flag) {
-        Ok((evdev::ReadStatus::Success, event)) => self.handle_event(event),
-        Ok((evdev::ReadStatus::Sync, event)) => {
-          warn!("Nasskan could not keep up with you typing so fast... now trying to recover.");
-          flag = evdev::ReadFlag::SYNC;
-          self.handle_event(event);
-        }
-        Err(nix::errno::Errno::EAGAIN) => return,
-        Err(nix::errno::Errno::ENODEV) => return,
-        Err(error) => {
-          error!("evdev error: {:?}", error);
-          return;
-        }
-      };
     }
   }
 }
@@ -234,10 +127,10 @@ impl AsyncWorker for KeyboardConnectionWorker {
               "A keyboard connected!: {:?} {:?}",
               device_file_path, config_device.if_
             );
-            manager.start(
-              device_id.try_into().unwrap(),
-              KeyPressWorker::new(device_file_path, &config_device.then),
-            );
+
+            let remapper = Remapper::new(&config_device.then);
+            let worker = KeyPressWorker::new(device_file_path, remapper);
+            manager.start(device_id.try_into().unwrap(), worker);
             return;
           }
         }
@@ -247,6 +140,156 @@ impl AsyncWorker for KeyboardConnectionWorker {
         manager.stop(device_id.try_into().unwrap());
       }
       _ => {}
+    }
+  }
+}
+
+struct KeyPressWorker {
+  actual_keyboard: evdev::Device,
+  virtual_keyboard: evdev::UInputDevice,
+  remapper: Remapper,
+}
+
+impl KeyPressWorker {
+  fn new(path: &std::path::Path, remapper: Remapper) -> Self {
+    let file = std::fs::File::open(path).unwrap();
+    let mut actual_keyboard = evdev::Device::new_from_fd(file).unwrap();
+    let virtual_keyboard = evdev::UInputDevice::create_from_device(&actual_keyboard)
+      .expect("Creating uinput device failed. Maybe uinput kernel module is not loaded?");
+    actual_keyboard.grab(evdev::GrabMode::Grab).unwrap();
+
+    Self {
+      actual_keyboard,
+      virtual_keyboard,
+      remapper,
+    }
+  }
+
+  fn handle_event(&mut self, input_event: evdev::InputEvent) {
+    let key: EventKey = match &input_event.event_code {
+      evdev::enums::EventCode::EV_KEY(ref key) => {
+        trace!("Received an evdev event: {:?}", input_event);
+        key.clone().into()
+      }
+      _ => {
+        trace!("Ignored an evdev event: {:?}", input_event);
+        return;
+      }
+    };
+    let event_type: EventType = input_event
+      .value
+      .try_into()
+      .expect("an evdev event has invalid value");
+    let event = remapper::Event { event_type, key };
+
+    debug!("Input: {:?}", event);
+    let remapped_events = self.remapper.remap(event);
+    debug!("Output: {:?}", remapped_events);
+
+    for remapped_event in remapped_events {
+      self
+        .virtual_keyboard
+        .write_event(&evdev::InputEvent::new(
+          &input_event.time,
+          &evdev::enums::EventCode::EV_KEY(remapped_event.key.into()),
+          remapped_event.event_type as i32,
+        ))
+        .unwrap();
+    }
+
+    self
+      .virtual_keyboard
+      .write_event(&evdev::InputEvent {
+        event_type: evdev::enums::EventType::EV_SYN,
+        event_code: evdev::enums::EventCode::EV_SYN(evdev::enums::EV_SYN::SYN_REPORT),
+        value: 0,
+        ..input_event
+      })
+      .unwrap();
+  }
+}
+//   fn remap(&mut self, event: Event) -> Vec<Event> {
+//     let mut result = Vec::new();
+//     let active_rule = match self.keymap.iter().find(|rule| {
+//       event.key == rule.from.key.0
+//         && rule
+//           .from
+//           .with
+//           .as_ref()
+//           .map(|config_modifiers| self.active_modifiers.is_superset(&config_modifiers))
+//           .unwrap_or(true)
+//         && rule
+//           .from
+//           .without
+//           .as_ref()
+//           .map(|config_modifiers| self.active_modifiers.is_disjoint(&config_modifiers))
+//           .unwrap_or(true)
+//     }) {
+//       Some(rule) => rule,
+//       None => return Vec::new(),
+//     };
+
+//       if let Some(ref modifiers) = active_rule.to.without {
+//         for modifier in modifiers.iter() {
+//           let keys: HashSet<EV_KEY> = modifier.clone().into();
+//           for key in keys {
+//             result.push(Event {
+//               action: event.action.invert(),
+//               key,
+//             })
+//           }
+//         }
+//       }
+
+//       if let Some(ref modifiers) = active_rule.to.with {
+//         for modifier in modifiers.iter() {
+//           let keys: HashSet<EV_KEY> = modifier.clone().into();
+//           for key in keys {
+//             result.push(Event {
+//               action: event.action,
+//               key,
+//             })
+//           }
+//         }
+//       }
+//     }
+
+//     result
+//   }
+// }
+
+impl AsRawFd for KeyPressWorker {
+  fn as_raw_fd(&self) -> RawFd {
+    let file = self.actual_keyboard.fd().unwrap();
+    let fd = file.as_raw_fd();
+
+    // Why do I have to do this...
+    // When `file` dropped, its destructor gets called, and `fd` becomes invalid.
+    // TODO: Fill a bug report to evdev-rs
+    std::mem::forget(file);
+
+    fd
+  }
+}
+
+impl AsyncWorker for KeyPressWorker {
+  fn step(&mut self, _: &mut WorkerManager) {
+    let mut flag = evdev::ReadFlag::NORMAL;
+    loop {
+      match self.actual_keyboard.next_event(flag) {
+        Ok((evdev::ReadStatus::Success, event)) => self.handle_event(event),
+        Ok((evdev::ReadStatus::Sync, event)) => {
+          warn!("Nasskan could not keep up with you typing so fast... now trying to recover.");
+          flag = evdev::ReadFlag::SYNC;
+          self.handle_event(event);
+        }
+        Err(nix::errno::Errno::EAGAIN) => return,
+        Err(nix::errno::Errno::ENODEV) => return,
+        Err(error) => {
+          error!("evdev error: {:?}", error);
+          return;
+        }
+      };
     }
   }
 }
