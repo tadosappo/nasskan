@@ -7,7 +7,6 @@ use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::rc::Rc;
-use std::time::SystemTime;
 
 mod remapper;
 use remapper::*;

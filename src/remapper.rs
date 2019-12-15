@@ -1,6 +1,5 @@
 use crate::config::*;
 use evdev_rs::enums::EV_KEY;
-use log::*;
 use maplit::btreeset;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
@@ -23,19 +22,7 @@ impl Remapper {
     }
   }
 
-  // keyrepeat ha toriaezu kanngaenai
-  pub(crate) fn remap(&mut self, event: Event) -> Vec<Event> {
-    let mut already_sent: BTreeSet<Event> = self
-      .active_keys
-      .iter()
-      .flat_map(|key| {
-        key.remapped_keys().into_iter().map(|key| Event {
-          event_type: EventType::Press,
-          key,
-        })
-      })
-      .collect();
-
+  pub(crate) fn remap(&mut self, event: Event) -> BTreeSet<Event> {
     let old_active_keys = self.active_keys.clone();
     self.add_remove_active_key(&event);
     self.update_each_active_key();
@@ -43,8 +30,12 @@ impl Remapper {
     let mut events: BTreeSet<Event> = BTreeSet::new();
     events.extend(self.events_for_appeared_key(&old_active_keys));
     events.extend(self.events_for_disappeared_key(&old_active_keys));
-    // events.extend() keyrepeat
-    events.into_iter().collect()
+
+    if let Some(keyrepeat) = self.keyrepeat(&event, &old_active_keys) {
+      events.insert(keyrepeat);
+    }
+
+    events
   }
 
   fn add_remove_active_key(&mut self, received: &Event) {
@@ -139,6 +130,37 @@ impl Remapper {
       .difference(&self.active_keys)
       .flat_map(|disappeared_key| disappeared_key.events(EventType::Release))
       .collect()
+  }
+
+  fn keyrepeat(&self, event: &Event, old_active_keys: &BTreeSet<KeyState>) -> Option<Event> {
+    let remapped_modifiers = self.remapped_modifiers();
+
+    if self
+      .active_keys
+      .contains(&KeyState::Passthru(event.key.clone()))
+      && old_active_keys.contains(&KeyState::Passthru(event.key.clone()))
+    {
+      return Some(Event {
+        event_type: EventType::Repeat,
+        key: event.key.clone(),
+      });
+    }
+
+    for key in self.active_keys.intersection(&old_active_keys) {
+      match key {
+        KeyState::Passthru(_) => {}
+        KeyState::Remapped(rule) => {
+          if rule.is_active(&event.key, &remapped_modifiers) {
+            return Some(Event {
+              event_type: EventType::Repeat,
+              key: rule.to.key.clone(),
+            });
+          }
+        }
+      }
+    }
+
+    None
   }
 }
 
