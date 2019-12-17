@@ -210,11 +210,20 @@ impl KeyState {
       }],
       KeyState::Remapped(rule) => {
         let empty = BTreeSet::new();
-        let modifiers = rule
-          .to
-          .with
-          .as_ref()
-          .unwrap_or(&empty)
+        let from_modifiers = rule.from.with.as_ref().unwrap_or(&empty);
+        let to_modifiers = rule.to.with.as_ref().unwrap_or(&empty);
+        let from_keys = from_modifiers
+          .difference(to_modifiers)
+          .into_iter()
+          .flat_map(|modifier| {
+            let keys: Vec<EventKey> = modifier.into();
+            keys.into_iter().map(|key| Event {
+              event_type: event_type.invert(),
+              key,
+            })
+          });
+        let to_keys = to_modifiers
+          .difference(from_modifiers)
           .into_iter()
           .flat_map(|modifier| {
             let keys: Vec<EventKey> = modifier.into();
@@ -224,7 +233,10 @@ impl KeyState {
           event_type,
           key: rule.to.key.clone(),
         };
-        std::iter::once(key).chain(modifiers).collect()
+        std::iter::once(key)
+          .chain(from_keys)
+          .chain(to_keys)
+          .collect()
       }
     }
   }
