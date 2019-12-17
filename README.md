@@ -1,12 +1,15 @@
 # nasskan
-A key remapper for Wayland.
+Yet another key remapper for Linux.
 
-- ✔ Easy configuration in YAML
-- ✔ One-shot modifier
-- ✔ Map key combinations to key combinations
-- ✔ Monitors attaching/detatching of external keyboards
+- 👍 Works without X (supports Wayland)
+- 👎 Needs root privilege
 
-This software is in alpha state. Your keyboard will possibly be unresponsive. Use at your own risk.
+- 👍 Easy configuration with YAML
+- 👍 Multi key to multi key mapping
+- 👍 One-shot modifier
+- 👍 Reacts to attaching of external keyboards
+
+This software is in beta. There's a possibility for your keyboard to be unresponsive. Use at your own risk.
 
 ## Install
 TODO: Open Build System
@@ -21,10 +24,11 @@ Nasskan reads `/etc/nasskan/config.yaml`. See [examples](https://github.com/tado
 
 ```
 version: 1
-devices:
-  - vendor_id: 
-    product_id: 
-    rules:
+device:
+  - if:
+      ID_VENDOR_ID: <See below>
+      ID_MODEL_ID: <See below>
+    then:
       - from:
           key: <a KEY you want to remap>
           with:  # optional
@@ -32,18 +36,20 @@ devices:
           without:  # optional
             - <a MODIFIER if you want to disable this rule while certain MODIFIER is pressed>
         to:
-          key: <a KEY which will get pressed instead of the "from" key>
+          key: <a KEY which will get pressed instead of from.key>
           with:  # optional
-            - <a MODIFIER which will get pressed in addition to modifiers pressed actually>
-          without:  # optional
-            - <a MODIFIER which will get released before the key get pressed>
+            - <a MODIFIER which will get pressed instead of from.with>
         tap:  # optional
           key: <If no other key was pressed while "from" key is pressed, then press this KEY>
 ```
 
-## Terms
+### if
+Nasskan has to know that which remapping rules are for which keyboard. In order to do that, nasskan uses so-called udev device properties. You can check your keyboard's device properties by `udevadm info /dev/input/<your keyboard's device file>`. I recommend that you write ID_VENDOR_ID and ID_MODEL_ID in the configuration but writing other properties should be fine.
+
+You can check your keyboard's device file by `libinput list-devices`.
+
 ### KEY
-[Possible values are defined here as constants](https://github.com/torvalds/linux/blob/b5625db9d23e58a573eb10a7f6d0c2ae060bc0e8/include/uapi/linux/input-event-codes.h#L77). You can write either key code number or key code name without `KEY_`.
+[Possible values are defined here](https://github.com/tadosappo/nasskan/blob/aa33a1e50e28dc5ef1f57212b092fdaa6f7e92cf/src/config.rs#L117).
 
 ### MODIFIER
 Possible values are `SHIFT`, `CTRL`, `ALT`, `META` (for Super key, Windows key, Command key, or whatever).
