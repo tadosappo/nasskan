@@ -59,10 +59,14 @@ pub(crate) struct Tap {
 
 #[derive(Deserialize, Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) enum Modifier {
-  Shift,
-  Control,
-  Alt,
-  Meta,
+  LEFTSHIFT,
+  RIGHTSHIFT,
+  LEFTCTRL,
+  RIGHTCTRL,
+  LEFTALT,
+  RIGHTALT,
+  LEFTMETA,
+  RIGHTMETA,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

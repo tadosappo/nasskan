@@ -191,7 +191,7 @@ impl KeyPressWorker {
         .write_event(&evdev::InputEvent::new(
           &input_event.time,
           &evdev::enums::EventCode::EV_KEY(remapped_event.key.into()),
-          remapped_event.event_type as i32,
+          remapped_event.event_type.into(),
         ))
         .unwrap();
     }

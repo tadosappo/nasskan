@@ -4,12 +4,13 @@ use maplit::btreeset;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::convert::{TryFrom, TryInto};
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 // Remaps Event to Vec<Event>
 pub(crate) struct Remapper {
   keymap: &'static Vec<Rule>,
-  active_keys: BTreeSet<KeyState>,
+  active_rules: BTreeSet<&'static Rule>,
+  active_passthrus: BTreeSet<EventKey>,
   last_key: EventKey,
 }
 
@@ -17,42 +18,47 @@ impl Remapper {
   pub(crate) fn new(keymap: &'static Vec<Rule>) -> Self {
     Self {
       keymap,
-      active_keys: BTreeSet::new(),
+      active_rules: BTreeSet::new(),
+      active_passthrus: BTreeSet::new(),
       last_key: EV_KEY::KEY_UNKNOWN.into(),
     }
   }
 
-  pub(crate) fn remap(&mut self, event: Event) -> BTreeSet<Event> {
-    let old_active_keys = self.active_keys.clone();
-    self.add_remove_active_key(&event);
-    self.update_each_active_key();
+  pub(crate) fn remap(&mut self, received: Event) -> BTreeSet<Event> {
+    let old_active_rules = self.active_rules.clone();
+    let old_active_passthrus = self.active_passthrus.clone();
+    let old_virtually_pressed = self.virtually_pressed();
 
-    let mut events: BTreeSet<Event> = BTreeSet::new();
-    events.extend(self.events_for_appeared_key(&old_active_keys));
-    events.extend(self.events_for_disappeared_key(&old_active_keys));
+    self.add_remove_actives(&received);
+    self.convert_actives();
 
-    if let Some(keyrepeat) = self.keyrepeat(&event, &old_active_keys) {
-      events.insert(keyrepeat);
-    }
+    let mut to_be_sent = BTreeSet::new();
+    to_be_sent.extend(self.events_for_diff(&old_virtually_pressed));
+    to_be_sent.extend(self.events_for_keyrepeats(received));
 
-    events
+    dbg!(&self.active_passthrus);
+    dbg!(&self.virtually_pressed());
+
+    return to_be_sent;
+    self.filter_redundant(old_virtually_pressed, to_be_sent)
   }
 
-  fn add_remove_active_key(&mut self, received: &Event) {
+  fn add_remove_actives(&mut self, received: &Event) {
     match received.event_type {
       EventType::Press => {
-        self
-          .active_keys
-          .insert(KeyState::Passthru(received.key.clone()));
+        self.active_passthrus.insert(received.key.clone());
       }
       EventType::Release => {
-        self
-          .active_keys
-          .remove(&KeyState::Passthru(received.key.clone()));
+        self.active_passthrus.remove(&received.key);
 
-        for rule in self.active_remaps() {
-          if received.key == rule.from.key {
-            self.active_keys.remove(&KeyState::Remapped(rule));
+        let pressed = self
+          .actually_pressed()
+          .difference(&btreeset![received.key.clone()])
+          .cloned()
+          .collect();
+        for rule in self.active_rules.clone().into_iter() {
+          if !self.is_active(rule, &pressed) {
+            self.active_rules.remove(rule);
           }
         }
       }
@@ -60,141 +66,89 @@ impl Remapper {
     }
   }
 
-  fn update_each_active_key(&mut self) {
-    let remaps = self.active_remaps();
-    let passthrus = self.active_passthrus();
+  fn convert_actives(&mut self) {
+    let mut already_handled_keys: BTreeSet<EventKey> = Default::default();
 
-    for config_rule in self.keymap.iter() {
-      let remapped_modifiers = self.remapped_modifiers();
-
-      for rule in remaps.iter() {
-        if !config_rule.is_active(&rule.from.key, &remapped_modifiers) {
-          self.active_keys.remove(&KeyState::Remapped(config_rule));
-          self
-            .active_keys
-            .insert(KeyState::Passthru(rule.from.key.clone()));
+    for rule in self.keymap.iter() {
+      for passthru in self.active_passthrus.clone().into_iter() {
+        if !already_handled_keys.contains(&passthru)
+          && self.is_active(rule, &btreeset![passthru.clone()])
+        {
+          self.active_passthrus.remove(&passthru);
+          self.active_rules.insert(rule);
+          already_handled_keys.insert(passthru);
         }
       }
+    }
 
-      for passthru in passthrus.iter() {
-        if config_rule.is_active(passthru, &remapped_modifiers) {
-          self
-            .active_keys
-            .remove(&KeyState::Passthru(passthru.clone()));
-          self.active_keys.insert(KeyState::Remapped(config_rule));
-        }
+    for rule in self.active_rules.clone().into_iter() {
+      if !self.is_active(rule, &self.actually_pressed()) {
+        self.active_rules.remove(rule);
+        self.active_passthrus.insert(rule.from.key.clone());
       }
     }
   }
 
-  fn remapped_modifiers(&self) -> BTreeSet<Modifier> {
-    self
-      .active_keys
-      .iter()
-      .filter_map(|key| key.remapped_key().clone().try_into().ok())
-      .collect()
-  }
+  fn events_for_diff(&self, old_virtually_pressed: &BTreeSet<EventKey>) -> BTreeSet<Event> {
+    let mut result = BTreeSet::new();
 
-  fn active_passthrus(&self) -> BTreeSet<EventKey> {
-    self
-      .active_keys
-      .iter()
-      .filter_map(|key| match key {
-        KeyState::Passthru(key) => Some(key.clone()),
-        KeyState::Remapped(_) => None,
-      })
-      .collect()
-  }
-
-  fn active_remaps(&self) -> BTreeSet<&'static Rule> {
-    self
-      .active_keys
-      .iter()
-      .filter_map(|key| match key {
-        KeyState::Passthru(_) => None,
-        KeyState::Remapped(rule) => Some(*rule),
-      })
-      .collect()
-  }
-
-  fn events_for_appeared_key(&self, old_active_keys: &BTreeSet<KeyState>) -> BTreeSet<Event> {
-    self
-      .active_keys
-      .difference(old_active_keys)
-      .flat_map(|appeared_key| appeared_key.events(EventType::Press))
-      .collect()
-  }
-
-  fn events_for_disappeared_key(&self, old_active_keys: &BTreeSet<KeyState>) -> BTreeSet<Event> {
-    old_active_keys
-      .difference(&self.active_keys)
-      .flat_map(|disappeared_key| disappeared_key.events(EventType::Release))
-      .collect()
-  }
-
-  fn keyrepeat(&self, event: &Event, old_active_keys: &BTreeSet<KeyState>) -> Option<Event> {
-    let remapped_modifiers = self.remapped_modifiers();
-
-    if self
-      .active_keys
-      .contains(&KeyState::Passthru(event.key.clone()))
-      && old_active_keys.contains(&KeyState::Passthru(event.key.clone()))
-    {
-      return Some(Event {
-        event_type: EventType::Repeat,
-        key: event.key.clone(),
+    for press in self.virtually_pressed().difference(old_virtually_pressed) {
+      result.insert(Event {
+        event_type: EventType::Press,
+        key: press.clone(),
       });
     }
 
-    for key in self.active_keys.intersection(&old_active_keys) {
-      match key {
-        KeyState::Passthru(_) => {}
-        KeyState::Remapped(rule) => {
-          if rule.is_active(&event.key, &remapped_modifiers) {
-            return Some(Event {
-              event_type: EventType::Repeat,
-              key: rule.to.key.clone(),
-            });
-          }
-        }
+    for release in old_virtually_pressed.difference(&self.virtually_pressed()) {
+      result.insert(Event {
+        event_type: EventType::Release,
+        key: release.clone(),
+      });
+    }
+
+    result
+  }
+
+  fn events_for_keyrepeats(&self, received: Event) -> Option<Event> {
+    if received.event_type != EventType::Repeat {
+      return None;
+    }
+
+    for rule in self.active_rules.iter() {
+      if self.is_active(rule, &btreeset![received.key.clone()]) {
+        return Some(Event {
+          event_type: EventType::Repeat,
+          key: rule.to.key.clone(),
+        });
       }
     }
 
-    None
-  }
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, Ord, PartialOrd)]
-enum KeyState {
-  Passthru(EventKey),
-  Remapped(&'static Rule),
-}
-
-impl KeyState {
-  fn original_key(&self) -> &EventKey {
-    match self {
-      KeyState::Passthru(key) => key,
-      KeyState::Remapped(rule) => &rule.from.key,
-    }
+    Some(received)
   }
 
-  fn remapped_key(&self) -> &EventKey {
-    match self {
-      KeyState::Passthru(key) => key,
-      KeyState::Remapped(rule) => &rule.to.key,
-    }
-  }
-
-  fn remapped_keys(&self) -> BTreeSet<EventKey> {
-    let empty = BTreeSet::new();
-    let mut result = btreeset![self.remapped_key().clone()];
-
-    match self {
-      KeyState::Passthru(_) => {}
-      KeyState::Remapped(rule) => {
-        for modifier in rule.to.with.as_ref().unwrap_or(&empty).iter() {
-          let keys: Vec<EventKey> = modifier.into();
-          result.extend(keys);
+  fn filter_redundant(
+    &self,
+    pressed: BTreeSet<EventKey>,
+    to_be_sent: BTreeSet<Event>,
+  ) -> BTreeSet<Event> {
+    let mut result = BTreeSet::new();
+    for event in to_be_sent.into_iter() {
+      match event.event_type {
+        EventType::Press => {
+          if !pressed.contains(&event.key) {
+            result.insert(event);
+          }
+        }
+        EventType::Release => {
+          if pressed.contains(&event.key) {
+            result.insert(event);
+          }
+        }
+        EventType::Repeat => {
+          result.insert(Event {
+            event_type: EventType::Repeat,
+            key: event.key,
+          });
         }
       }
     }
@@ -202,43 +156,62 @@ impl KeyState {
     result
   }
 
-  fn events(&self, event_type: EventType) -> BTreeSet<Event> {
-    match self {
-      KeyState::Passthru(key) => btreeset![Event {
-        event_type,
-        key: key.clone(),
-      }],
-      KeyState::Remapped(rule) => {
-        let empty = BTreeSet::new();
-        let from_modifiers = rule.from.with.as_ref().unwrap_or(&empty);
-        let to_modifiers = rule.to.with.as_ref().unwrap_or(&empty);
-        let from_keys = from_modifiers
-          .difference(to_modifiers)
-          .into_iter()
-          .flat_map(|modifier| {
-            let keys: Vec<EventKey> = modifier.into();
-            keys.into_iter().map(|key| Event {
-              event_type: event_type.invert(),
-              key,
-            })
-          });
-        let to_keys = to_modifiers
-          .difference(from_modifiers)
-          .into_iter()
-          .flat_map(|modifier| {
-            let keys: Vec<EventKey> = modifier.into();
-            keys.into_iter().map(|key| Event { event_type, key })
-          });
-        let key = Event {
-          event_type,
-          key: rule.to.key.clone(),
-        };
-        std::iter::once(key)
-          .chain(from_keys)
-          .chain(to_keys)
-          .collect()
+  fn actually_pressed(&self) -> BTreeSet<EventKey> {
+    self
+      .active_rules
+      .iter()
+      .map(|rule| rule.from.key.clone())
+      .chain(self.active_passthrus.iter().cloned())
+      .collect()
+  }
+
+  fn is_active(&self, rule: &'static Rule, pressed: &BTreeSet<EventKey>) -> bool {
+    let remapped_modifiers: BTreeSet<Modifier> = self
+      .active_rules
+      .iter()
+      .map(|rule| rule.to.key.clone())
+      .chain(self.active_passthrus.iter().cloned())
+      .filter_map(|key| key.try_into().ok())
+      .collect();
+
+    pressed.contains(&rule.from.key)
+      && rule
+        .from
+        .with
+        .as_ref()
+        .map(|config_modifiers| remapped_modifiers.is_superset(&config_modifiers))
+        .unwrap_or(true)
+      && rule
+        .from
+        .without
+        .as_ref()
+        .map(|config_modifiers| remapped_modifiers.is_disjoint(&config_modifiers))
+        .unwrap_or(true)
+  }
+
+  fn virtually_pressed(&self) -> BTreeSet<EventKey> {
+    let empty = BTreeSet::new();
+    let mut result = self.active_passthrus.clone();
+
+    for rule in self.active_rules.iter() {
+      result.insert(rule.to.key.clone());
+    }
+
+    for rule in self.active_rules.iter() {
+      for modifier in rule.from.with.as_ref().unwrap_or(&empty).iter() {
+        result.remove(&modifier.into());
       }
     }
+
+    for rule in self.active_rules.iter() {
+      result.insert(rule.to.key.clone());
+
+      for modifier in rule.to.with.as_ref().unwrap_or(&empty).iter() {
+        result.insert(modifier.into());
+      }
+    }
+
+    result
   }
 }
 
@@ -258,7 +231,7 @@ impl Ord for Event {
     match (modifier1, modifier2) {
       (Some(_), None) => Ordering::Less,
       (None, Some(_)) => Ordering::Greater,
-      _ => (self.event_type, self.key.clone()).cmp(&(other.event_type, other.key.clone())),
+      _ => (self.key.clone(), self.event_type).cmp(&(other.key.clone(), self.event_type)),
     }
   }
 }
@@ -271,16 +244,16 @@ impl PartialOrd for Event {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) enum EventType {
-  Release,
   Press,
+  Release,
   Repeat,
 }
 
 impl EventType {
   fn invert(&self) -> Self {
     match self {
-      EventType::Release => EventType::Press,
       EventType::Press => EventType::Release,
+      EventType::Release => EventType::Press,
       EventType::Repeat => EventType::Repeat,
     }
   }
@@ -299,21 +272,13 @@ impl TryFrom<i32> for EventType {
   }
 }
 
-impl Rule {
-  pub(crate) fn is_active(&self, key: &EventKey, remapped_modifiers: &BTreeSet<Modifier>) -> bool {
-    key == &self.from.key
-      && self
-        .from
-        .with
-        .as_ref()
-        .map(|config_modifiers| remapped_modifiers.is_superset(&config_modifiers))
-        .unwrap_or(true)
-      && self
-        .from
-        .without
-        .as_ref()
-        .map(|config_modifiers| remapped_modifiers.is_disjoint(&config_modifiers))
-        .unwrap_or(true)
+impl Into<i32> for EventType {
+  fn into(self) -> i32 {
+    match self {
+      Self::Release => 0,
+      Self::Press => 1,
+      Self::Repeat => 2,
+    }
   }
 }
 
@@ -330,28 +295,36 @@ impl TryFrom<&EventKey> for Modifier {
 
   fn try_from(key: &EventKey) -> Result<Self, Self::Error> {
     match key.deref() {
-      EV_KEY::KEY_LEFTSHIFT | EV_KEY::KEY_RIGHTSHIFT => Ok(Self::Shift),
-      EV_KEY::KEY_LEFTCTRL | EV_KEY::KEY_RIGHTCTRL => Ok(Self::Control),
-      EV_KEY::KEY_LEFTALT | EV_KEY::KEY_RIGHTALT => Ok(Self::Alt),
-      EV_KEY::KEY_LEFTMETA | EV_KEY::KEY_RIGHTMETA => Ok(Self::Meta),
+      EV_KEY::KEY_LEFTSHIFT => Ok(Self::LEFTSHIFT),
+      EV_KEY::KEY_RIGHTSHIFT => Ok(Self::RIGHTSHIFT),
+      EV_KEY::KEY_LEFTCTRL => Ok(Self::LEFTCTRL),
+      EV_KEY::KEY_RIGHTCTRL => Ok(Self::RIGHTCTRL),
+      EV_KEY::KEY_LEFTALT => Ok(Self::LEFTALT),
+      EV_KEY::KEY_RIGHTALT => Ok(Self::RIGHTALT),
+      EV_KEY::KEY_LEFTMETA => Ok(Self::LEFTMETA),
+      EV_KEY::KEY_RIGHTMETA => Ok(Self::RIGHTMETA),
       _ => Err(()),
     }
   }
 }
 
-impl Into<Vec<EventKey>> for Modifier {
-  fn into(self) -> Vec<EventKey> {
+impl Into<EventKey> for Modifier {
+  fn into(self) -> EventKey {
     (&self).into()
   }
 }
 
-impl Into<Vec<EventKey>> for &Modifier {
-  fn into(self) -> Vec<EventKey> {
+impl Into<EventKey> for &Modifier {
+  fn into(self) -> EventKey {
     match self {
-      Modifier::Shift => vec![EV_KEY::KEY_LEFTSHIFT.into(), EV_KEY::KEY_RIGHTSHIFT.into()],
-      Modifier::Control => vec![EV_KEY::KEY_LEFTCTRL.into(), EV_KEY::KEY_RIGHTCTRL.into()],
-      Modifier::Alt => vec![EV_KEY::KEY_LEFTALT.into(), EV_KEY::KEY_RIGHTALT.into()],
-      Modifier::Meta => vec![EV_KEY::KEY_LEFTMETA.into(), EV_KEY::KEY_RIGHTMETA.into()],
+      Modifier::LEFTSHIFT => EV_KEY::KEY_LEFTSHIFT.into(),
+      Modifier::RIGHTSHIFT => EV_KEY::KEY_RIGHTSHIFT.into(),
+      Modifier::LEFTCTRL => EV_KEY::KEY_LEFTCTRL.into(),
+      Modifier::RIGHTCTRL => EV_KEY::KEY_RIGHTCTRL.into(),
+      Modifier::LEFTALT => EV_KEY::KEY_LEFTALT.into(),
+      Modifier::RIGHTALT => EV_KEY::KEY_RIGHTALT.into(),
+      Modifier::LEFTMETA => EV_KEY::KEY_LEFTMETA.into(),
+      Modifier::RIGHTMETA => EV_KEY::KEY_RIGHTMETA.into(),
     }
   }
 }
