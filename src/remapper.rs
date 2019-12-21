@@ -4,7 +4,7 @@ use maplit::btreeset;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::convert::{TryFrom, TryInto};
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 
 // Remaps Event to Vec<Event>
 pub(crate) struct Remapper {
@@ -25,8 +25,6 @@ impl Remapper {
   }
 
   pub(crate) fn remap(&mut self, received: Event) -> BTreeSet<Event> {
-    let old_active_rules = self.active_rules.clone();
-    let old_active_passthrus = self.active_passthrus.clone();
     let old_virtually_pressed = self.virtually_pressed();
 
     self.add_remove_actives(&received);
@@ -36,11 +34,7 @@ impl Remapper {
     to_be_sent.extend(self.events_for_diff(&old_virtually_pressed));
     to_be_sent.extend(self.events_for_keyrepeats(received));
 
-    dbg!(&self.active_passthrus);
-    dbg!(&self.virtually_pressed());
-
-    return to_be_sent;
-    self.filter_redundant(old_virtually_pressed, to_be_sent)
+    to_be_sent
   }
 
   fn add_remove_actives(&mut self, received: &Event) {
@@ -124,36 +118,6 @@ impl Remapper {
     }
 
     Some(received)
-  }
-
-  fn filter_redundant(
-    &self,
-    pressed: BTreeSet<EventKey>,
-    to_be_sent: BTreeSet<Event>,
-  ) -> BTreeSet<Event> {
-    let mut result = BTreeSet::new();
-    for event in to_be_sent.into_iter() {
-      match event.event_type {
-        EventType::Press => {
-          if !pressed.contains(&event.key) {
-            result.insert(event);
-          }
-        }
-        EventType::Release => {
-          if pressed.contains(&event.key) {
-            result.insert(event);
-          }
-        }
-        EventType::Repeat => {
-          result.insert(Event {
-            event_type: EventType::Repeat,
-            key: event.key,
-          });
-        }
-      }
-    }
-
-    result
   }
 
   fn actually_pressed(&self) -> BTreeSet<EventKey> {
@@ -247,16 +211,6 @@ pub(crate) enum EventType {
   Press,
   Release,
   Repeat,
-}
-
-impl EventType {
-  fn invert(&self) -> Self {
-    match self {
-      EventType::Press => EventType::Release,
-      EventType::Release => EventType::Press,
-      EventType::Repeat => EventType::Repeat,
-    }
-  }
 }
 
 impl TryFrom<i32> for EventType {
