@@ -1,8 +1,8 @@
 version: 1
 devices:
   - if:
-      ID_VENDOR: 0x05f3
-      ID_MODEL: 0x0007
+      ID_VENDOR_ID: 05f3
+      ID_MODEL_ID: 0007
     then:
       - from:
           key: CAPSLOCK

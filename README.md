@@ -1,13 +1,11 @@
 # nasskan
 Yet another key remapper for Linux.
 
-- 👍 Works without X (supports Wayland)
-- 👎 Needs root privilege
-
-- 👍 Easy configuration with YAML
-- 👍 Multi key to multi key mapping
-- 👍 One-shot modifier
-- 👍 Reacts to attaching of external keyboards
+- Works without X (supports Wayland)
+- Easy configuration with YAML
+- Multi key to multi key mapping
+- One-shot modifier
+- Reacts to attaching of external keyboards
 
 This software is in beta. There's a possibility for your keyboard to be unresponsive. Use at your own risk.
 
@@ -16,7 +14,8 @@ TODO: Open Build System
 
 ## Usage
 ```sh
-systemctl enable --now nasskan
+cargo build --release
+sudo target/release/nasskan
 ```
 
 ## Configuration
@@ -52,4 +51,4 @@ You can check your keyboard's device file by `libinput list-devices`.
 [Possible values are defined here](https://github.com/tadosappo/nasskan/blob/aa33a1e50e28dc5ef1f57212b092fdaa6f7e92cf/src/config.rs#L117).
 
 ### MODIFIER
-Possible values are `SHIFT`, `CTRL`, `ALT`, `META` (for Super key, Windows key, Command key, or whatever).
+[Possible values are defined here](https://github.com/tadosappo/nasskan/blob/master/src/config.rs#L61).
