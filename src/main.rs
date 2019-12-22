@@ -36,9 +36,9 @@ impl WorkerManager {
       self.poll.poll(&mut events, None).unwrap();
 
       for event in events.iter() {
-        let worker = self.workers.get_mut(&event.token().0).unwrap();
-        Rc::clone(worker).borrow_mut().step(self)
-
+        if let Some(worker) = self.workers.get_mut(&event.token().0) {
+          Rc::clone(worker).borrow_mut().step(self)
+        }
         // The reason why I use Vec<Rc<RefCell<AsyncWorker>>> instead of Vec<Box<AsyncWorker>> is:
         // While doing `worker.step(manager)`, there's a possibility for `step` to remove `worker` itself using `manager`.
         // It took a while to figure out what cryptic messages from borrow checker means...
@@ -76,9 +76,8 @@ struct KeyboardConnectionWorker {
 }
 
 impl KeyboardConnectionWorker {
-  fn new() -> Self {
-    let ctx = udev::Context::new().unwrap();
-    let mut builder = udev::MonitorBuilder::new(&ctx).unwrap();
+  fn new(ctx: &udev::Context) -> Self {
+    let mut builder = udev::MonitorBuilder::new(ctx).unwrap();
     builder.match_subsystem("input").unwrap();
     let monitor = builder.listen().unwrap();
 
@@ -94,51 +93,31 @@ impl AsRawFd for KeyboardConnectionWorker {
 
 impl AsyncWorker for KeyboardConnectionWorker {
   fn step(&mut self, manager: &mut WorkerManager) {
-    let event = match self.monitor.next() {
-      Some(event) => event,
-      None => {
-        warn!("We are no longer able to observe keyboard connections.");
-        return;
-      }
-    };
+    loop {
+      let event = match self.monitor.next() {
+        Some(event) => event,
+        None => return,
+      };
 
-    let connected_device = event.device();
-    let device_id = match connected_device.devnum() {
-      Some(devnum) => devnum,
-      None => return,
-    };
-    let device_file_path = match connected_device.devnode() {
-      Some(devnode) => devnode,
-      None => return,
-    };
+      let connected_device = event.device();
+      let device_id = match connected_device.devnum() {
+        Some(devnum) => devnum,
+        None => return,
+      };
 
-    match event.event_type() {
-      udev::EventType::Add => {
-        for config_device in CONFIG.devices.iter() {
-          let is_connected = config_device.if_.iter().all(|(name, value)| {
-            connected_device
-              .property_value(name)
-              .and_then(|x| x.to_str())
-              == Some(value)
-          });
-          if is_connected {
-            info!(
-              "A keyboard connected!: {:?} {:?}",
-              device_file_path, config_device.if_
-            );
-
-            let remapper = Remapper::new(&config_device.then);
-            let worker = KeyPressWorker::new(device_file_path, remapper);
+      match event.event_type() {
+        udev::EventType::Add => {
+          if let Some(worker) = KeyPressWorker::for_keyboard(&connected_device) {
+            info!("keyboard {} connected", device_id);
             manager.start(device_id.try_into().unwrap(), worker);
-            return;
           }
         }
+        udev::EventType::Remove => {
+          info!("keyboard {} disconnected", device_id);
+          manager.stop(device_id.try_into().unwrap());
+        }
+        _ => {}
       }
-      udev::EventType::Remove => {
-        info!("A keyboard disconnected: {:?}", device_file_path);
-        manager.stop(device_id.try_into().unwrap());
-      }
-      _ => {}
     }
   }
 }
@@ -162,6 +141,27 @@ impl KeyPressWorker {
       virtual_keyboard,
       remapper,
     }
+  }
+
+  fn for_keyboard(keyboard: &udev::Device) -> Option<Self> {
+    let device_file_path = match keyboard.devnode() {
+      Some(devnode) => devnode,
+      None => return None,
+    };
+
+    for config_device in CONFIG.devices.iter() {
+      let is_connected = config_device
+        .if_
+        .iter()
+        .all(|(name, value)| keyboard.property_value(name).and_then(|x| x.to_str()) == Some(value));
+
+      if is_connected {
+        let remapper = Remapper::new(&config_device.then);
+        return Some(KeyPressWorker::new(device_file_path, remapper));
+      }
+    }
+
+    None
   }
 
   fn handle_event(&mut self, input_event: evdev::InputEvent) {
@@ -207,55 +207,6 @@ impl KeyPressWorker {
       .unwrap();
   }
 }
-//   fn remap(&mut self, event: Event) -> Vec<Event> {
-//     let mut result = Vec::new();
-//     let active_rule = match self.keymap.iter().find(|rule| {
-//       event.key == rule.from.key.0
-//         && rule
-//           .from
-//           .with
-//           .as_ref()
-//           .map(|config_modifiers| self.active_modifiers.is_superset(&config_modifiers))
-//           .unwrap_or(true)
-//         && rule
-//           .from
-//           .without
-//           .as_ref()
-//           .map(|config_modifiers| self.active_modifiers.is_disjoint(&config_modifiers))
-//           .unwrap_or(true)
-//     }) {
-//       Some(rule) => rule,
-//       None => return Vec::new(),
-//     };
-
-//       if let Some(ref modifiers) = active_rule.to.without {
-//         for modifier in modifiers.iter() {
-//           let keys: HashSet<EV_KEY> = modifier.clone().into();
-//           for key in keys {
-//             result.push(Event {
-//               action: event.action.invert(),
-//               key,
-//             })
-//           }
-//         }
-//       }
-
-//       if let Some(ref modifiers) = active_rule.to.with {
-//         for modifier in modifiers.iter() {
-//           let keys: HashSet<EV_KEY> = modifier.clone().into();
-//           for key in keys {
-//             result.push(Event {
-//               action: event.action,
-//               key,
-//             })
-//           }
-//         }
-//       }
-//     }
-
-//     result
-//   }
-// }
 
 impl AsRawFd for KeyPressWorker {
   fn as_raw_fd(&self) -> RawFd {
@@ -293,6 +244,12 @@ impl AsyncWorker for KeyPressWorker {
   }
 }
 
+fn find_keyboards(ctx: &udev::Context) -> udev::Devices {
+  let mut scanner = udev::Enumerator::new(ctx).unwrap();
+  scanner.match_subsystem("input").unwrap();
+  scanner.scan_devices().unwrap()
+}
+
 fn main() {
   match std::env::var("RUST_LOG") {
     Ok(_) => env_logger::init(),
@@ -302,11 +259,23 @@ fn main() {
   }
 
   let mut manager = WorkerManager::new();
-
-  let worker = KeyboardConnectionWorker::new();
+  let ctx = udev::Context::new().unwrap();
+  let worker = KeyboardConnectionWorker::new(&ctx);
+  // It's safe to use 0 as worker id because udev::Device::devnum never returns Some(0)
   manager.start(0, worker);
   info!("Start watching keyboard connections...");
-  // It's safe to use 0 as worker id because udev::Device::devnum never returns Some(0)
+
+  for keyboard in find_keyboards(&ctx) {
+    let device_id = match keyboard.devnum() {
+      Some(devnum) => devnum,
+      None => continue,
+    };
+
+    if let Some(worker) = KeyPressWorker::for_keyboard(&keyboard) {
+      info!("keyboard found!");
+      manager.start(device_id.try_into().unwrap(), worker);
+    }
+  }
 
   manager.run()
 }
