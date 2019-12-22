@@ -1,5 +1,6 @@
 use crate::config::*;
 use evdev_rs::enums::EV_KEY;
+use log::*;
 use maplit::btreeset;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
@@ -32,8 +33,9 @@ impl Remapper {
 
     let mut to_be_sent = BTreeSet::new();
     to_be_sent.extend(self.events_for_diff(&old_virtually_pressed));
-    to_be_sent.extend(self.events_for_keyrepeats(received));
-
+    to_be_sent.extend(self.events_for_tap(&received));
+    to_be_sent.extend(self.events_for_keyrepeats(received.clone()));
+    self.last_key = received.key.clone();
     to_be_sent
   }
 
@@ -120,6 +122,36 @@ impl Remapper {
     Some(received)
   }
 
+  fn events_for_tap(&self, received: &Event) -> BTreeSet<Event> {
+    if self.last_key != received.key {
+      return BTreeSet::new();
+    }
+
+    if received.event_type != EventType::Release {
+      return BTreeSet::new();
+    }
+
+    for rule in self.keymap.iter() {
+      if let Some(tap) = &rule.tap {
+        if self.is_active(&rule, &btreeset![received.key.clone()]) {
+          debug!("req");
+          return btreeset![
+            Event {
+              event_type: EventType::Press,
+              key: tap.key.clone()
+            },
+            Event {
+              event_type: EventType::Release,
+              key: tap.key.clone()
+            }
+          ];
+        }
+      }
+    }
+
+    BTreeSet::new()
+  }
+
   fn actually_pressed(&self) -> BTreeSet<EventKey> {
     self
       .active_rules
@@ -195,7 +227,7 @@ impl Ord for Event {
     match (modifier1, modifier2) {
       (Some(_), None) => Ordering::Less,
       (None, Some(_)) => Ordering::Greater,
-      _ => (self.key.clone(), self.event_type).cmp(&(other.key.clone(), self.event_type)),
+      _ => (self.key.clone(), self.event_type).cmp(&(other.key.clone(), other.event_type)),
     }
   }
 }
