@@ -1,0 +1,12 @@
+[Unit]
+Description=Yet another key remapper
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/nasskan
+Environment=RUST_LOG=info
+Nice=-20
+
+[Install]
+WantedBy=multi-user.target
