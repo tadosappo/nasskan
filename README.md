@@ -1,7 +1,7 @@
 # nasskan
-Yet another key remapper for Linux.
+A key remapper for Wayland environments.
 
-- Works without X (supports Wayland)
+- Works without X
 - Easy configuration with YAML
 - Multi key to multi key mapping
 - One-shot modifier
@@ -9,13 +9,15 @@ Yet another key remapper for Linux.
 
 This software is in beta. There's a possibility for your keyboard to be unresponsive. Use at your own risk.
 
-## Install
-TODO: Open Build System
-
-## Usage
+# Install
 ```sh
+git clone https://github.com/tadosappo/nasskan.git
+cd nasskan
+
 cargo build --release
-sudo target/release/nasskan
+cp target/release/nasskan /usr/bin/
+cp nasskan.service /etc/systemd/system/
+systemctl enable --now nasskan
 ```
 
 ## Configuration
