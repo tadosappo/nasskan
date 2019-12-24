@@ -18,7 +18,7 @@ impl Remapper {
     Self {
       keymap,
       keyboard_state: Vec::new(),
-      last_key: EV_KEY::KEY_UNKNOWN.into(),
+      last_key: EV_KEY::KEY_RESERVED.into(),
     }
   }
 
@@ -44,53 +44,42 @@ impl Remapper {
           .keyboard_state
           .push(KeyState::Passthru(received.key.clone()));
       }
-      EventType::Release => {
-        self.keyboard_state = self
-          .keyboard_state
-          .drain(..)
-          .filter(|key_state| match key_state {
-            KeyState::Passthru(key) => &received.key != key,
-            KeyState::Remapped(rule) => received.key != rule.from.key,
-          })
-          .collect();
-      }
+      EventType::Release => self
+        .keyboard_state
+        .retain(|key_state| key_state.original_key() != received.key),
       EventType::Repeat => {}
     }
   }
 
   fn convert_actives(&mut self) {
-    let mut already_handled_keys: BTreeSet<EventKey> = Default::default();
+    let original_keys: Vec<EventKey> = self
+      .keyboard_state
+      .iter()
+      .map(|key_state| key_state.original_key())
+      .collect();
+
+    // Initialize modifier state
+    for key_state in self.keyboard_state.iter_mut() {
+      *key_state = KeyState::Passthru(EV_KEY::KEY_RESERVED.into())
+    }
 
     for config_rule in self.keymap.iter() {
-      if already_handled_keys.contains(&config_rule.from.key) {
-        continue;
-      }
+      for (i, original_key) in original_keys.iter().enumerate() {
+        if let KeyState::Remapped(_) = self.keyboard_state[i] {
+          continue;
+        }
 
-      let new_keyboard_state = self
-        .keyboard_state
-        .iter()
-        .map(|key_state| match key_state {
-          KeyState::Passthru(passthru) => {
-            if self.is_active(config_rule, &btreeset![passthru.clone()]) {
-              KeyState::Remapped(config_rule)
-            } else {
-              key_state.clone()
-            }
-          }
-          KeyState::Remapped(rule) => {
-            if self.is_active(rule, &self.actually_pressed()) {
-              key_state.clone()
-            } else {
-              KeyState::Passthru(rule.from.key.clone())
-            }
-          }
-        })
-        .collect();
-      if self.keyboard_state != new_keyboard_state {
-        already_handled_keys.insert(config_rule.from.key.clone());
+        if self.is_active(config_rule, &original_key) {
+          std::mem::replace(&mut self.keyboard_state[i], KeyState::Remapped(config_rule));
+          break;
+        }
       }
+    }
 
-      self.keyboard_state = new_keyboard_state
+    for (i, key_state) in self.keyboard_state.iter_mut().enumerate() {
+      if key_state == &KeyState::Passthru(EV_KEY::KEY_RESERVED.into()) {
+        *key_state = KeyState::Passthru(original_keys[i].clone());
+      }
     }
   }
 
@@ -160,15 +149,7 @@ impl Remapper {
     BTreeSet::new()
   }
 
-  fn actually_pressed(&self) -> BTreeSet<EventKey> {
-    self
-      .keyboard_state
-      .iter()
-      .map(|key_state| key_state.original_key())
-      .collect()
-  }
-
-  fn is_active(&self, rule: &'static Rule, pressed: &BTreeSet<EventKey>) -> bool {
+  fn is_active(&self, rule: &'static Rule, pressed: &EventKey) -> bool {
     let remapped_modifiers: BTreeSet<Modifier> = self
       .keyboard_state
       .iter()
@@ -176,7 +157,7 @@ impl Remapper {
       .filter_map(|key| key.try_into().ok())
       .collect();
 
-    pressed.contains(&rule.from.key)
+    pressed == &rule.from.key
       && rule
         .from
         .with
