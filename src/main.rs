@@ -5,6 +5,8 @@ use mio::*;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
+use std::fs::OpenOptions;
+use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::rc::Rc;
 
@@ -37,7 +39,7 @@ impl WorkerManager {
 
       for event in events.iter() {
         if let Some(worker) = self.workers.get_mut(&event.token().0) {
-          Rc::clone(worker).borrow_mut().step(self)
+          Rc::clone(worker).borrow_mut().step(self);
         }
         // The reason why I use Vec<Rc<RefCell<AsyncWorker>>> instead of Vec<Box<AsyncWorker>> is:
         // While doing `worker.step(manager)`, there's a possibility for `step` to remove `worker` itself using `manager`.
@@ -130,7 +132,11 @@ struct KeyPressWorker {
 
 impl KeyPressWorker {
   fn new(path: &std::path::Path, remapper: Remapper) -> Result<Self, nix::errno::Errno> {
-    let file = std::fs::File::open(path).unwrap();
+    let file = OpenOptions::new()
+      .read(true)
+      .custom_flags(nix::fcntl::OFlag::O_NONBLOCK.bits())
+      .open(path)
+      .unwrap();
     let mut actual_keyboard = evdev::Device::new_from_fd(file)?;
     let virtual_keyboard = evdev::UInputDevice::create_from_device(&actual_keyboard)
       .expect("Creating uinput device failed. Maybe uinput kernel module is not loaded?");
