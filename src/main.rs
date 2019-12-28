@@ -129,18 +129,18 @@ struct KeyPressWorker {
 }
 
 impl KeyPressWorker {
-  fn new(path: &std::path::Path, remapper: Remapper) -> Self {
+  fn new(path: &std::path::Path, remapper: Remapper) -> Result<Self, nix::errno::Errno> {
     let file = std::fs::File::open(path).unwrap();
-    let mut actual_keyboard = evdev::Device::new_from_fd(file).unwrap();
+    let mut actual_keyboard = evdev::Device::new_from_fd(file)?;
     let virtual_keyboard = evdev::UInputDevice::create_from_device(&actual_keyboard)
       .expect("Creating uinput device failed. Maybe uinput kernel module is not loaded?");
-    actual_keyboard.grab(evdev::GrabMode::Grab).unwrap();
+    actual_keyboard.grab(evdev::GrabMode::Grab).expect("Some process have grabbed this keyboard already. Maybe there's an another instance of nasskan running?");
 
-    Self {
+    Ok(Self {
       actual_keyboard,
       virtual_keyboard,
       remapper,
-    }
+    })
   }
 
   fn for_keyboard(keyboard: &udev::Device) -> Option<Self> {
@@ -157,7 +157,11 @@ impl KeyPressWorker {
 
       if is_connected {
         let remapper = Remapper::new(&config_device.then);
-        return Some(KeyPressWorker::new(device_file_path, remapper));
+        if let Ok(x) = KeyPressWorker::new(device_file_path, remapper) {
+          return Some(x);
+        };
+
+        warn!("evdev_new_from_fd failed. It means some non-keyboard device matched with devices.if clause in your config. You should write it more strictly")
       }
     }
 
