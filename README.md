@@ -3,9 +3,9 @@ A key remapper for Wayland environments.
 
 - Works without X
 - Easy configuration with YAML
-- Multi key to multi key mapping
+- From key combination to key combination mapping
 - One-shot modifier
-- Reacts to attaching of external keyboards
+- Reacts to attach of external keyboards
 
 This software is in beta. There's a possibility for your keyboard to be unresponsive. Use at your own risk.
 
@@ -41,16 +41,16 @@ device:
           with:  # optional
             - <a MODIFIER which will get pressed instead of from.with>
         tap:  # optional
-          key: <If no other key was pressed while "from" key is pressed, then press this KEY>
+          key: <If no other key was pressed while "from" key is pressed, then this KEY gets pressed>
 ```
 
 ### if
-Nasskan has to know which keyboard the remapping rules is for. In order to do that, nasskan uses udev device properties. You can check your keyboard's device properties by `udevadm info /dev/input/<your keyboard's device file>`. I recommend that you write your keyboard's ID_VENDOR_ID and ID_MODEL_ID in `if` section. but writing other properties should be fine.
+Nasskan has to know which keyboard the remapping rules is for. In order to do so, nasskan uses udev device properties. You can check your keyboard's device properties by `udevadm info /dev/input/<your keyboard's device file>`. I recommend that you write your keyboard's ID_VENDOR_ID and ID_MODEL_ID in `if` section. but writing other properties should be fine.
 
 You can check your keyboard's device file by `libinput list-devices`.
 
 ### KEY
-[Possible values are defined here](https://github.com/tadosappo/nasskan/blob/aa33a1e50e28dc5ef1f57212b092fdaa6f7e92cf/src/config.rs#L117).
+[Possible values are defined here](https://github.com/tadosappo/nasskan/blob/4f064d3c7292e4d0d3ef3e6bd7649f3d7ad6c65c/src/config.rs#L124).
 
 ### MODIFIER
-[Possible values are defined here](https://github.com/tadosappo/nasskan/blob/master/src/config.rs#L61).
+[Possible values are defined here](https://github.com/tadosappo/nasskan/blob/4f064d3c7292e4d0d3ef3e6bd7649f3d7ad6c65c/src/config.rs#L61).

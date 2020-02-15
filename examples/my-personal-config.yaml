@@ -1,0 +1,1096 @@
+version: 1
+devices:
+  - if:
+      ID_VENDOR_ID: 29ea
+      ID_MODEL_ID: 0102
+    then:
+      - from:
+          key: CAPSLOCK
+        to:
+          key: LEFTMETA
+        tap:
+          key: ENTER
+      - from:
+          key: BACKSPACE
+        to:
+          key: LEFTSHIFT
+      - from:
+          key: DELETE
+        to:
+          key: LEFTCTRL
+        tap:
+          key: MUHENKAN
+      - from:
+          key: ENTER
+        to:
+          key: RIGHTALT
+        tap:
+          key: HENKAN
+      - from:
+          key: EQUAL
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: BACKSLASH
+          with:
+            - LEFTSHIFT
+      - from:
+          key: EQUAL
+        to:
+          key: 1
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 1
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 2
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 1
+        to:
+          key: 0
+      - from:
+          key: 2
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: LEFTBRACE
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 2
+        to:
+          key: 1
+      - from:
+          key: 3
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: LEFTBRACE
+      - from:
+          key: 3
+        to:
+          key: 2
+      - from:
+          key: 4
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 9
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 4
+        to:
+          key: 3
+      - from:
+          key: 5
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: COMMA
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 5
+        to:
+          key: 4
+      - from:
+          key: 6
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: DOT
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 6
+        to:
+          key: 5
+      - from:
+          key: 7
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 0
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 7
+        to:
+          key: 6
+      - from:
+          key: 8
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: RIGHTBRACE
+      - from:
+          key: 8
+        to:
+          key: 7
+      - from:
+          key: 9
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: RIGHTBRACE
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 9
+        to:
+          key: 8
+      - from:
+          key: 0
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 8
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 0
+        to:
+          key: 9
+      - from:
+          key: MINUS
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 7
+          with:
+            - LEFTSHIFT
+      - from:
+          key: MINUS
+        to:
+          key: SLASH
+          with:
+            - LEFTSHIFT
+      - from:
+          key: TAB
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: GRAVE
+      - from:
+          key: TAB
+        to:
+          key: GRAVE
+          with:
+            - LEFTSHIFT
+      - from:
+          key: Q
+        to:
+          key: APOSTROPHE
+      - from:
+          key: W
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 3
+          with:
+            - LEFTSHIFT
+      - from:
+          key: W
+        to:
+          key: COMMA
+      - from:
+          key: E
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 4
+          with:
+            - LEFTSHIFT
+      - from:
+          key: E
+        to:
+          key: DOT
+      - from:
+          key: R
+        to:
+          key: P
+      - from:
+          key: T
+        to:
+          key: Y
+      - from:
+          key: Y
+        to:
+          key: F
+      - from:
+          key: U
+          with:
+            - LEFTMETA
+        to:
+          key: HOME
+      - from:
+          key: U
+        to:
+          key: G
+      - from:
+          key: I
+          with:
+            - LEFTMETA
+        to:
+          key: LEFT
+          with:
+            - RIGHTCTRL
+      - from:
+          key: O
+          with:
+            - LEFTMETA
+        to:
+          key: RIGHT
+          with:
+            - RIGHTCTRL
+      - from:
+          key: P
+          with:
+            - LEFTMETA
+        to:
+          key: END
+      - from:
+          key: I
+        to:
+          key: C
+      - from:
+          key: O
+        to:
+          key: R
+      - from:
+          key: P
+        to:
+          key: L
+      - from:
+          key: BACKSLASH
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 5
+          with:
+            - LEFTSHIFT
+      - from:
+          key: BACKSLASH
+        to:
+          key: SLASH
+      - from:
+          key: S
+        to:
+          key: O
+      - from:
+          key: D
+        to:
+          key: E
+      - from:
+          key: F
+        to:
+          key: U
+      - from:
+          key: G
+        to:
+          key: I
+      - from:
+          key: H
+          with:
+            - LEFTMETA
+        to:
+          key: BACKSPACE
+      - from:
+          key: H
+        to:
+          key: D
+      - from:
+          key: J
+          with:
+            - LEFTMETA
+        to:
+          key: LEFT
+      - from:
+          key: J
+        to:
+          key: H
+      - from:
+          key: K
+          with:
+            - LEFTMETA
+        to:
+          key: UP
+      - from:
+          key: K
+        to:
+          key: T
+      - from:
+          key: L
+          with:
+            - LEFTMETA
+        to:
+          key: DOWN
+      - from:
+          key: L
+        to:
+          key: N
+      - from:
+          key: SEMICOLON
+          with:
+            - LEFTMETA
+        to:
+          key: RIGHT
+      - from:
+          key: SEMICOLON
+        to:
+          key: S
+      - from:
+          key: APOSTROPHE
+          with:
+            - LEFTMETA
+        to:
+          key: DELETE
+      - from:
+          key: APOSTROPHE
+        to:
+          key: MINUS
+      - from:
+          key: LEFTSHIFT
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 6
+          with:
+            - LEFTSHIFT
+      - from:
+          key: LEFTSHIFT
+        to:
+          key: BACKSLASH
+      - from:
+          key: Z
+        to:
+          key: SEMICOLON
+      - from:
+          key: X
+        to:
+          key: Q
+      - from:
+          key: C
+        to:
+          key: J
+      - from:
+          key: V
+        to:
+          key: K
+      - from:
+          key: B
+        to:
+          key: X
+      - from:
+          key: N
+        to:
+          key: B
+      - from:
+          key: COMMA
+        to:
+          key: W
+      - from:
+          key: DOT
+        to:
+          key: V
+      - from:
+          key: SLASH
+        to:
+          key: Z
+      - from:
+          key: RIGHTSHIFT
+        to:
+          key: EQUAL
+      - from:
+          key: GRAVE
+        to:
+          key: ESC
+      - from:
+          key: 102ND
+        to:
+          key: TAB
+      - from:
+          key: LEFT
+        to:
+          key: BACKSPACE
+      - from:
+          key: RIGHT
+        to:
+          key: DELETE
+      - from:
+          key: UP
+        to:
+          key: LEFT
+      - from:
+          key: DOWN
+        to:
+          key: UP
+      - from:
+          key: LEFTBRACE
+        to:
+          key: DOWN
+      - from:
+          key: RIGHTBRACE
+        to:
+          key: RIGHT
+  - if:
+      MAJOR: 13
+      MINOR: 68
+    then:
+      - from:
+          key: CAPSLOCK
+        to:
+          key: LEFTMETA
+        tap:
+          key: ENTER
+      - from:
+          key: LEFTALT
+        to:
+          key: LEFTSHIFT
+        tap:
+          key: MUHENKAN
+      - from:
+          key: RIGHTALT
+        to:
+          key: RIGHTCTRL
+        tap:
+          key: HENKAN
+      - from:
+          key: RIGHTCTRL
+        to:
+          key: RIGHTALT
+      - from:
+          key: GRAVE
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: BACKSLASH
+          with:
+            - LEFTSHIFT
+      - from:
+          key: GRAVE
+        to:
+          key: 1
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 1
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 2
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 1
+        to:
+          key: 0
+      - from:
+          key: 2
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: LEFTBRACE
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 2
+        to:
+          key: 1
+      - from:
+          key: 3
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: LEFTBRACE
+      - from:
+          key: 3
+        to:
+          key: 2
+      - from:
+          key: 4
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 9
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 4
+        to:
+          key: 3
+      - from:
+          key: 5
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: COMMA
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 5
+        to:
+          key: 4
+      - from:
+          key: 6
+        to:
+          key: PRINT
+      - from:
+          key: 7
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: DOT
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 7
+        to:
+          key: 5
+      - from:
+          key: 8
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 0
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 8
+        to:
+          key: 6
+      - from:
+          key: 9
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: RIGHTBRACE
+      - from:
+          key: 9
+        to:
+          key: 7
+      - from:
+          key: 0
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: RIGHTBRACE
+          with:
+            - LEFTSHIFT
+      - from:
+          key: 0
+        to:
+          key: 8
+      - from:
+          key: MINUS
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 8
+          with:
+            - LEFTSHIFT
+      - from:
+          key: MINUS
+        to:
+          key: 9
+      - from:
+          key: EQUAL
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 7
+          with:
+            - LEFTSHIFT
+      - from:
+          key: EQUAL
+        to:
+          key: SLASH
+          with:
+            - LEFTSHIFT
+      - from:
+          key: TAB
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: GRAVE
+      - from:
+          key: TAB
+        to:
+          key: GRAVE
+          with:
+            - LEFTSHIFT
+      - from:
+          key: Q
+        to:
+          key: APOSTROPHE
+      - from:
+          key: W
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 3
+          with:
+            - LEFTSHIFT
+      - from:
+          key: W
+        to:
+          key: COMMA
+      - from:
+          key: E
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 4
+          with:
+            - LEFTSHIFT
+      - from:
+          key: E
+        to:
+          key: DOT
+      - from:
+          key: R
+        to:
+          key: P
+      - from:
+          key: T
+        to:
+          key: Y
+      - from:
+          key: Y
+        to:
+          key: F
+      - from:
+          key: U
+          with:
+            - LEFTMETA
+        to:
+          key: HOME
+      - from:
+          key: U
+        to:
+          key: G
+      - from:
+          key: I
+          with:
+            - LEFTMETA
+        to:
+          key: LEFT
+          with:
+            - RIGHTCTRL
+      - from:
+          key: O
+          with:
+            - LEFTMETA
+        to:
+          key: RIGHT
+          with:
+            - RIGHTCTRL
+      - from:
+          key: P
+          with:
+            - LEFTMETA
+        to:
+          key: END
+      - from:
+          key: I
+        to:
+          key: C
+      - from:
+          key: O
+        to:
+          key: R
+      - from:
+          key: P
+        to:
+          key: L
+      - from:
+          key: LEFTBRACE
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 5
+          with:
+            - LEFTSHIFT
+      - from:
+          key: LEFTBRACE
+        to:
+          key: SLASH
+      - from:
+          key: RIGHTBRACE
+        to:
+          key: EQUAL
+      - from:
+          key: S
+        to:
+          key: O
+      - from:
+          key: D
+        to:
+          key: E
+      - from:
+          key: F
+        to:
+          key: U
+      - from:
+          key: G
+        to:
+          key: I
+      - from:
+          key: H
+          with:
+            - LEFTMETA
+        to:
+          key: BACKSPACE
+      - from:
+          key: H
+        to:
+          key: D
+      - from:
+          key: J
+          with:
+            - LEFTMETA
+        to:
+          key: LEFT
+      - from:
+          key: J
+        to:
+          key: H
+      - from:
+          key: K
+          with:
+            - LEFTMETA
+        to:
+          key: UP
+      - from:
+          key: K
+        to:
+          key: T
+      - from:
+          key: L
+          with:
+            - LEFTMETA
+        to:
+          key: DOWN
+      - from:
+          key: L
+        to:
+          key: N
+      - from:
+          key: SEMICOLON
+          with:
+            - LEFTMETA
+        to:
+          key: RIGHT
+      - from:
+          key: SEMICOLON
+        to:
+          key: S
+      - from:
+          key: APOSTROPHE
+          with:
+            - LEFTMETA
+        to:
+          key: DELETE
+      - from:
+          key: APOSTROPHE
+        to:
+          key: MINUS
+      - from:
+          key: ENTER
+        to:
+          key: TAB
+      - from:
+          key: LEFTSHIFT
+          with:
+            - LEFTSHIFT
+          without:
+            - LEFTCTRL
+            - RIGHTCTRL
+            - LEFTALT
+            - RIGHTALT
+            - LEFTMETA
+            - RIGHTMETA
+        to:
+          key: 6
+          with:
+            - LEFTSHIFT
+      - from:
+          key: LEFTSHIFT
+        to:
+          key: BACKSLASH
+      - from:
+          key: Z
+        to:
+          key: SEMICOLON
+      - from:
+          key: X
+        to:
+          key: Q
+      - from:
+          key: C
+        to:
+          key: J
+      - from:
+          key: V
+        to:
+          key: K
+      - from:
+          key: B
+        to:
+          key: X
+      - from:
+          key: N
+        to:
+          key: B
+      - from:
+          key: COMMA
+        to:
+          key: W
+      - from:
+          key: DOT
+        to:
+          key: V
+      - from:
+          key: SLASH
+        to:
+          key: Z
+      - from:
+          key: RIGHTSHIFT
+        to:
+          key: ESC
