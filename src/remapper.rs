@@ -2,7 +2,7 @@ use crate::config::*;
 use evdev_rs::enums::EV_KEY;
 use maplit::btreeset;
 use std::cmp::Ordering;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::{TryFrom, TryInto};
 use std::ops::Deref;
 
@@ -38,15 +38,32 @@ impl Remapper {
   }
 
   fn add_remove_actives(&mut self, received: &Event) {
+    let empty = BTreeSet::new();
+    let modifier_map = self.modifier_map();
+    let remapped_modifier = modifier_map.get(&received.key);
+
     match received.event_type {
       EventType::Press => {
         self
           .keyboard_state
           .push(KeyState::Passthru(received.key.clone()));
       }
-      EventType::Release => self
-        .keyboard_state
-        .retain(|key_state| key_state.original_key() != received.key),
+      EventType::Release => self.keyboard_state.retain(|key_state| match key_state {
+        KeyState::Passthru(key) => key != &received.key,
+        KeyState::Remapped(rule) => {
+          rule.from.key != received.key
+            && remapped_modifier
+              .map(|remapped_modifier| {
+                !rule
+                  .from
+                  .with
+                  .as_ref()
+                  .unwrap_or(&empty)
+                  .contains(remapped_modifier)
+              })
+              .unwrap_or(true)
+        }
+      }),
       EventType::Repeat => {}
     }
   }
@@ -205,6 +222,18 @@ impl Remapper {
         KeyState::Passthru(_) => None,
         KeyState::Remapped(rule) => Some(*rule),
       })
+  }
+
+  fn modifier_map(&self) -> BTreeMap<EventKey, Modifier> {
+    let mut result = BTreeMap::new();
+
+    for rule in self.keymap.iter() {
+      if let Some(modifier) = (&rule.to.key).try_into().ok() {
+        result.insert(rule.from.key.clone(), modifier);
+      }
+    }
+
+    result
   }
 }
 
