@@ -6,6 +6,9 @@ use std::cmp::{Ordering, PartialOrd};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Deref;
 
+mod validation;
+use validation::*;
+
 lazy_static! {
   pub(crate) static ref CONFIG: Config = {
     let file = std::fs::File::open("/etc/nasskan/config.yaml")
@@ -13,6 +16,9 @@ lazy_static! {
     let reader = std::io::BufReader::new(file);
     let config: Config =
       serde_yaml::from_reader(reader).expect("/etc/nasskan/config.yaml has invalid shape");
+
+    validate_order(&config);
+    validate_tap(&config);
 
     assert_eq!(config.version, 1);
     config
