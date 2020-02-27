@@ -45,7 +45,7 @@ device:
 ```
 
 ### if
-Nasskan has to know which keyboard the remapping rules are for. In order to do so, nasskan uses udev device properties. You can check your keyboard's device properties by `udevadm info /dev/input/<your keyboard's device file>`. You can check your keyboard's device file path by `libinput list-devices`. I recommend that you write your keyboard's ID_VENDOR_ID and ID_MODEL_ID in `if` section. but writing other properties should be fine.
+Nasskan has to know which keyboard the remapping rules are for. In order to do so, nasskan uses udev device properties such as ID_VENDOR or ID_MODEL. You can check your keyboard's device properties by `udevadm info /dev/input/<your keyboard's device file>`. You can check your keyboard's device file path by `libinput list-devices`. I recommend that you write your keyboard's ID_VENDOR_ID and ID_MODEL_ID in `if` section. but writing other properties should be fine.
 
 ### KEY
 [Possible values are defined here](https://github.com/tadosappo/nasskan/blob/4f064d3c7292e4d0d3ef3e6bd7649f3d7ad6c65c/src/config.rs#L124).
