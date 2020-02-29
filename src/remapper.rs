@@ -68,6 +68,7 @@ impl Remapper {
     }
   }
 
+  // TODO: Refactoring
   fn convert_actives(&mut self) {
     let original_keys: Vec<EventKey> = self
       .keyboard_state
